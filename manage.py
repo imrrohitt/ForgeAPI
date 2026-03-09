@@ -7,7 +7,7 @@ Commands: runserver, generate migration|controller|model|job|service, db:migrate
 import os
 import sys
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 import click
 
@@ -91,7 +91,7 @@ def generate_cmd() -> None:
 
 
 def _timestamp() -> str:
-    return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
 @generate_cmd.command("migration")
@@ -111,9 +111,9 @@ def generate_migration(name: str) -> None:
         ac = Config(os.path.join(os.path.dirname(os.path.abspath(__file__)), "alembic.ini"))
         script = ScriptDirectory.from_config(ac)
         head = script.get_current_head()
-        down_rev = head or "None"
+        down_rev_line = f'down_revision = "{head}"' if head else "down_revision = None"
     except Exception:
-        down_rev = "20240101_000002"  # default to last known
+        down_rev_line = "down_revision = None"
     revision = ts
     content = f'''"""
 {name}.
@@ -124,7 +124,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "{revision}"
-down_revision = "{down_rev}"
+{down_rev_line}
 branch_labels = None
 depends_on = None
 

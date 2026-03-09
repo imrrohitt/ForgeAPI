@@ -31,13 +31,18 @@ settings = get_settings()
 database_url = _get_engine_url()
 pool_size, max_overflow = _get_pool_settings()
 
-engine = create_engine(
-    database_url,
-    pool_size=pool_size,
-    max_overflow=max_overflow,
-    pool_pre_ping=True,
-    echo=settings.DEBUG and settings.APP_ENV == "development",
-)
+# SQLite does not support pool_size/max_overflow/pool_pre_ping
+_engine_kw: dict = {
+    "echo": settings.DEBUG and settings.APP_ENV == "development",
+}
+if database_url.startswith("sqlite"):
+    _engine_kw["connect_args"] = {"check_same_thread": False}
+else:
+    _engine_kw["pool_size"] = pool_size
+    _engine_kw["max_overflow"] = max_overflow
+    _engine_kw["pool_pre_ping"] = True
+
+engine = create_engine(database_url, **_engine_kw)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

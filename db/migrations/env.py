@@ -16,7 +16,7 @@ from config.database import Base
 from config.settings import get_settings
 from config.database_yml import build_database_url
 
-config = context.config()
+config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
