@@ -1,197 +1,181 @@
-# MyApp — Rails-style FastAPI framework
+# Rails-style FastAPI Framework
 
-A **production-ready FastAPI boilerplate** that mirrors Ruby on Rails conventions: controllers with filters, ActiveRecord-style models with callbacks, centralized routing, services, background jobs, and a full CLI.
+A **clean, production-ready framework** that brings Ruby on Rails conventions to Python: centralized config, ActiveRecord-style models, controller filters, services, background jobs, and a full CLI — **no demo app**, just the stack you need to build on.
 
 ---
 
-## Table of contents
+## Contents
 
+- [Quick start](#quick-start)
 - [Tech stack](#tech-stack)
-- [Features](#features)
 - [Project structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Environment configuration](#environment-configuration)
+- [Conventions](#conventions)
+- [Configuration](#configuration)
 - [Database](#database)
-- [Running the application](#running-the-application)
+- [Running the app](#running-the-app)
 - [CLI reference](#cli-reference)
-- [API reference](#api-reference)
 - [Architecture](#architecture)
 - [Testing](#testing)
-- [Background jobs](#background-jobs)
+- [Adding your first resources](#adding-your-first-resources)
 - [Deployment](#deployment)
+
+---
+
+## Quick start
+
+```bash
+# Clone, enter project, create venv
+cd srijan
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# Install and configure
+pip install -r requirements.txt
+cp .env.example .env
+cp config/database.yml.example config/database.yml   # edit with your DB credentials
+
+# Database (optional — framework has no tables by default)
+python manage.py db:migrate
+python manage.py db:seed
+
+# Run
+python manage.py runserver
+```
+
+Then open **http://localhost:8000/health** and **http://localhost:8000/docs** (when `DEBUG=true`).
 
 ---
 
 ## Tech stack
 
-| Layer        | Technology |
-|-------------|------------|
-| **Language** | Python 3.11+ |
-| **Web**      | FastAPI (latest), Uvicorn |
-| **ORM**      | SQLAlchemy 2.0 |
-| **Migrations** | Alembic |
-| **Validation** | Pydantic v2 |
-| **Database** | PostgreSQL |
-| **Cache / queue** | Redis |
-| **Background jobs** | Celery |
-| **Auth**     | JWT (python-jose), Passlib + bcrypt |
-| **CLI**      | Click |
-| **Testing**  | Pytest, HTTPX |
-
----
-
-## Features
-
-- **Rails-like structure**: `config/` for settings and routes, `app/controllers`, `app/models`, `app/services`, `app/jobs`, concerns/mixins.
-- **Central routing**: Single `config/routes.py` with `resources()` and `namespace()` helpers.
-- **Base controller**: `@before_action` / `@after_action`, `render_json` / `render_error`, `params`, `current_user`.
-- **Base model**: Callbacks (`@before_save`, `@after_create`, etc.), `save` / `destroy` / `update` / `to_dict` / `reload`, scopes (`find`, `find_by`, `where`, `all`, `create`).
-- **Model concerns**: Timestampable, SoftDeletable, Sluggable.
-- **Controller concerns**: Authenticatable, Paginatable.
-- **Services**: Business logic layer with `success()` / `failure()`.
-- **Background jobs**: Celery with BaseJob, retries, queues (default, mailers, low_priority), Beat schedule.
-- **Auth**: JWT access + refresh tokens, role-based (user, admin, moderator).
-- **Migrations**: Timestamped Alembic migrations and CLI generator.
-- **CLI**: `manage.py` for server, db, generate, routes, worker, scheduler, shell.
+| Layer           | Technology                          |
+|----------------|--------------------------------------|
+| **Language**   | Python 3.11+                         |
+| **Web**        | FastAPI, Uvicorn                     |
+| **ORM**        | SQLAlchemy 2.0                       |
+| **Migrations** | Alembic (timestamped, Rails-style)   |
+| **Validation** | Pydantic v2                          |
+| **Database**   | PostgreSQL (config via `database.yml`) |
+| **Queue/Cache**| Redis                                |
+| **Jobs**       | Celery (queues: default, mailers, critical, low_priority) |
+| **Auth**       | JWT (python-jose), Passlib + bcrypt  |
+| **CLI**        | Click (`manage.py`)                  |
+| **Config**     | `.env` + `config/database.yml`       |
+| **Testing**    | Pytest, HTTPX                        |
 
 ---
 
 ## Project structure
 
 ```
-myapp/
-├── main.py                    # FastAPI app entry, lifespan, health check
-├── manage.py                  # CLI (runserver, db, generate, routes, worker, shell)
-├── alembic.ini                # Alembic config
+.
+├── main.py                      # FastAPI app, lifespan, health check
+├── manage.py                    # CLI: runserver, db, generate, routes, worker, shell
+├── alembic.ini
 ├── requirements.txt
 ├── .env.example
 │
 ├── config/
-│   ├── __init__.py
-│   ├── settings.py            # Pydantic Settings (env vars, Celery config)
-│   ├── database.py            # Engine, SessionLocal, Base, get_db
-│   ├── celery.py              # Celery app, queues, Beat schedule
-│   └── routes.py              # draw_routes, resources(), namespace()
+│   ├── settings.py              # Pydantic Settings from .env
+│   ├── database.yml             # Rails-style DB config (development/test/production)
+│   ├── database.yml.example     # Template for database.yml
+│   ├── database_yml.py          # Loads database.yml, builds DATABASE_URL
+│   ├── database.py              # Engine, SessionLocal, Base, get_db
+│   ├── celery.py                # Celery app, queues, Beat
+│   └── routes.py                # draw_routes(), resources(), namespace()
 │
 ├── app/
-│   ├── controllers/           # Request handlers + filters
-│   │   ├── base_controller.py
-│   │   ├── concerns/          # Authenticatable, Paginatable
-│   │   ├── users_controller.py
-│   │   ├── posts_controller.py
-│   │   └── auth_controller.py
-│   │
-│   ├── models/                 # SQLAlchemy models + callbacks
-│   │   ├── base_model.py
-│   │   ├── concerns/          # Timestampable, SoftDeletable, Sluggable
-│   │   ├── user.py
-│   │   └── post.py
-│   │
-│   ├── schemas/               # Pydantic v2 (request/response)
-│   │   ├── user_schema.py
-│   │   └── post_schema.py
-│   │
-│   ├── services/              # Business logic
-│   │   ├── base_service.py
-│   │   ├── user_service.py
-│   │   └── post_service.py
-│   │
-│   ├── jobs/                  # Celery tasks (BaseJob)
-│   │   ├── base_job.py
-│   │   ├── welcome_email_job.py
-│   │   └── cleanup_job.py
-│   │
-│   ├── middleware/
-│   │   ├── auth_middleware.py  # JWT → request.state.current_user
-│   │   └── logging_middleware.py
-│   │
-│   └── helpers/
-│       ├── jwt_helper.py      # create_access_token, decode_token, etc.
-│       └── response_helper.py # success_response, error_response
+│   ├── controllers/
+│   │   ├── base_controller.py   # before_action, render_json, params
+│   │   └── concerns/            # Authenticatable, Paginatable
+│   ├── models/
+│   │   ├── __init__.py          # Single place: import all models here (Rails convention)
+│   │   ├── base_model.py        # Callbacks, save/destroy, find/create
+│   │   └── concerns/            # Timestampable, SoftDeletable, Sluggable
+│   ├── schemas/                 # Pydantic (validation/serialization only; CRUD via models)
+│   ├── services/
+│   │   └── base_service.py      # success() / failure()
+│   ├── jobs/
+│   │   └── base_job.py          # perform_later, retries, queues
+│   ├── middleware/              # Auth (JWT → request.state.current_user), Logging
+│   └── helpers/                 # jwt_helper, response_helper
 │
 ├── db/
 │   ├── migrations/
-│   │   ├── env.py             # Alembic env, target_metadata
-│   │   └── versions/          # YYYYMMDD_HHMMSS_description.py
-│   └── seeds.py               # Seed admin, users, posts
+│   │   ├── env.py
+│   │   └── versions/            # YYYYMMDD_HHMMSS_description.py
+│   └── seeds.py                 # Override with your seed logic
 │
 └── tests/
-    ├── conftest.py            # db, client, authenticated_client, fixtures
-    ├── test_health.py
-    ├── test_users.py
-    ├── test_auth.py
-    └── test_posts.py
+    ├── conftest.py              # db, client fixtures
+    └── test_health.py
 ```
 
 ---
 
-## Prerequisites
+## Conventions
 
-- **Python** 3.11 or newer  
-- **PostgreSQL** (e.g. 14+)  
-- **Redis** (for Celery broker and optional cache)
-
----
-
-## Installation
-
-1. **Clone and enter the project**
-
-   ```bash
-   cd myapp
-   ```
-
-2. **Create and activate a virtual environment**
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Copy environment file and configure**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your DATABASE_URL, JWT_SECRET_KEY, Redis/Celery URLs, etc.
-   ```
+- **Models** — Define in `app/models/<name>.py`, then **add to `app/models/__init__.py`**. Everywhere else: `from app.models import BaseModel, MyModel`. One place, app-wide (like Rails autoload).
+- **CRUD** — Only through **SQLAlchemy models** (`Model.create(db, ...)`, `instance.save(db)`, `instance.destroy(db)`). Schemas are for **validation and serialization** only.
+- **Database** — Use **`config/database.yml`** per environment; `APP_ENV` selects the section. Set `DATABASE_URL` in `.env` to override.
+- **Routes** — All in **`config/routes.py`** via `draw_routes(app)`, `namespace()`, and `resources()`.
 
 ---
 
-## Environment configuration
+## Configuration
 
-All configuration is driven by environment variables (and `.env`). See `.env.example` for the full list.
+### Environment (`.env`)
+
+Copy `.env.example` to `.env`. Key variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| **App** | | |
 | `APP_NAME` | Application name | `MyApp` |
-| `APP_ENV` | `development` / `staging` / `production` | `development` |
-| `DEBUG` | Enable debug mode and /docs, /redoc | `True` |
-| `SECRET_KEY` | App secret (sessions, etc.) | — |
-| **Database** | | |
-| `DATABASE_URL` | PostgreSQL URL | `postgresql://postgres:postgres@localhost:5432/myapp` |
-| `DB_POOL_SIZE` | Connection pool size | `10` |
-| `DB_MAX_OVERFLOW` | Max overflow connections | `20` |
-| **JWT** | | |
-| `JWT_SECRET_KEY` | Signing key for tokens | — |
-| `JWT_ALGORITHM` | Algorithm | `HS256` |
+| `APP_ENV` | `development` / `test` / `staging` / `production` | `development` |
+| `DEBUG` | Enable `/docs`, `/redoc`, verbose logs | `true` |
+| `SECRET_KEY` | App secret | — |
+| `DATABASE_URL` | **Overrides** `database.yml` if set | (from database.yml) |
+| `JWT_SECRET_KEY` | JWT signing key | — |
+| `JWT_ALGORITHM` | JWT algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `15` |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `7` |
-| **Redis** | | |
-| `REDIS_URL` | Redis URL (cache, etc.) | `redis://localhost:6379/0` |
-| **Celery** | | |
-| `CELERY_BROKER_URL` | Broker (e.g. Redis) | `redis://localhost:6379/1` |
-| `CELERY_RESULT_BACKEND` | Result backend | `redis://localhost:6379/2` |
-| **Pagination** | | |
-| `DEFAULT_PAGE_SIZE` | Default `per_page` | `20` |
-| `MAX_PAGE_SIZE` | Max `per_page` | `100` |
+| `REDIS_URL` | Redis connection | `redis://localhost:6379/0` |
+| `CELERY_BROKER_URL` | Celery broker | `redis://localhost:6379/1` |
+| `CELERY_RESULT_BACKEND` | Celery results | `redis://localhost:6379/2` |
+| `DEFAULT_PAGE_SIZE` / `MAX_PAGE_SIZE` | Pagination | `20` / `100` |
+
+### Database (`config/database.yml`)
+
+Rails-style YAML. Copy from `config/database.yml.example`:
+
+```yaml
+default: &default
+  adapter: postgresql
+  encoding: utf8
+  pool: 10
+  timeout: 5000
+
+development:
+  <<: *default
+  database: myapp_development
+  username: postgres
+  password: postgres
+  host: localhost
+  port: 5432
+
+test:
+  <<: *default
+  database: myapp_test
+  # ...
+
+production:
+  <<: *default
+  database: myapp_production
+  # ...
+```
+
+- **Selected by** `APP_ENV`. `config/database_yml.py` merges `default` + env section and builds `DATABASE_URL`.
+- **Override** any time by setting `DATABASE_URL` in `.env`.
 
 ---
 
@@ -199,336 +183,233 @@ All configuration is driven by environment variables (and `.env`). See `.env.exa
 
 ### Migrations (Alembic)
 
-- Migrations live under `db/migrations/versions/` with timestamped names: `YYYYMMDD_HHMMSS_description.py`.
-- Each file has `revision`, `down_revision`, `upgrade()`, and `downgrade()`.
+- **Location:** `db/migrations/versions/` with names like `YYYYMMDD_HHMMSS_description.py`.
+- **Each file:** `revision`, `down_revision`, `upgrade()`, `downgrade()`.
 
-**Run pending migrations**
+| Command | Description |
+|--------|-------------|
+| `python manage.py db:migrate` | Run pending migrations |
+| `python manage.py db:rollback` | Rollback one step |
+| `python manage.py db:rollback --step=3` | Rollback 3 steps |
+| `python manage.py db:rollback --to=<revision>` | Rollback to revision |
+| `python manage.py db:status` | Current revision |
+| `python manage.py db:history` | Migration history |
+| `python manage.py db:seed` | Run `db/seeds.py` |
+| `python manage.py db:reset` | Downgrade all → migrate → seed |
 
-```bash
-python manage.py db:migrate
-```
-
-**Rollback**
-
-```bash
-python manage.py db:rollback              # one step
-python manage.py db:rollback --step=3    # three steps
-python manage.py db:rollback --to=20240101_000001
-```
-
-**Status and history**
+**Generate a new migration:**
 
 ```bash
-python manage.py db:status
-python manage.py db:history
+python manage.py generate migration create_articles_table
+# Creates db/migrations/versions/YYYYMMDD_HHMMSS_create_articles_table.py
 ```
 
-**Generate a new migration**
+### Seeds
 
-```bash
-python manage.py generate migration create_comments_table
-# Creates db/migrations/versions/YYYYMMDD_HHMMSS_create_comments_table.py
-```
-
-### Seeding
-
-Seeds create an admin user, sample users, and sample posts.
+`db/seeds.py` is a no-op by default. Override `run_seeds()` with your own logic and run:
 
 ```bash
 python manage.py db:seed
 ```
 
-### Full reset
-
-Drops all migrations, runs them again, then seeds:
-
-```bash
-python manage.py db:reset
-```
-
 ---
 
-## Running the application
+## Running the app
 
-**API server (development)**
+| Command | Description |
+|--------|-------------|
+| `python manage.py runserver` | Start API (Uvicorn, reload) |
+| `python manage.py runserver --port=8080` | Custom port |
+| `python manage.py worker` | Celery worker (default queue) |
+| `python manage.py worker --queue=mailers` | Worker for specific queue |
+| `python manage.py scheduler` | Celery Beat |
+| `python manage.py shell` | REPL with `db` and all `app.models` |
+| `python manage.py routes` | List registered routes |
 
-```bash
-python manage.py runserver
-# Optional: --port=8080 --host=0.0.0.0
-```
+**Endpoints (framework default):**
 
-- API base: `http://localhost:8000`  
-- Health: `http://localhost:8000/health`  
-- Swagger (if `DEBUG=True`): `http://localhost:8000/docs`  
-- ReDoc: `http://localhost:8000/redoc`
+- **GET `/health`** — Health check (no auth).
+- **GET `/docs`**, **GET `/redoc`** — API docs when `DEBUG=true`.
 
-**Celery worker**
-
-```bash
-python manage.py worker
-# Or a specific queue:
-python manage.py worker --queue=mailers
-python manage.py worker --queue=low_priority
-```
-
-**Celery Beat (scheduled tasks)**
-
-```bash
-python manage.py scheduler
-```
-
-**Interactive shell (app context)**
-
-```bash
-python manage.py shell
-# Preloaded: db, User, Post
-```
+Add your own routes in `config/routes.py` inside `draw_routes(app)`.
 
 ---
 
 ## CLI reference
 
+### Server
+
 | Command | Description |
 |---------|-------------|
-| **Server** | |
 | `python manage.py runserver` | Start Uvicorn with reload |
-| `python manage.py runserver --port=8080` | Custom port |
-| **Database** | |
-| `python manage.py db:migrate` | Run migrations (`alembic upgrade head`) |
-| `python manage.py db:rollback` | Rollback one migration |
-| `python manage.py db:rollback --step=N` | Rollback N migrations |
-| `python manage.py db:rollback --to=<rev>` | Rollback to revision |
-| `python manage.py db:status` | Current migration revision |
-| `python manage.py db:history` | Migration history |
-| `python manage.py db:seed` | Run `db/seeds.py` |
-| `python manage.py db:reset` | Downgrade all → upgrade → seed |
-| **Generate** | |
-| `python manage.py generate migration <name>` | New timestamped migration |
-| `python manage.py generate controller <name>` | New controller in `app/controllers/` |
-| `python manage.py generate model <name>` | New model in `app/models/` |
-| `python manage.py generate job <name>` | New job in `app/jobs/` |
-| `python manage.py generate service <name>` | New service in `app/services/` |
-| **Other** | |
-| `python manage.py routes` | List all routes (method, path, handler) |
-| `python manage.py worker` | Start Celery worker |
-| `python manage.py worker --queue=mailers` | Worker for specific queue |
-| `python manage.py scheduler` | Start Celery Beat |
-| `python manage.py shell` | REPL with db, User, Post |
+| `python manage.py runserver --port=PORT` | Custom port |
+| `python manage.py runserver --host=HOST` | Custom host |
 
----
+### Database
 
-## API reference
+| Command | Description |
+|---------|-------------|
+| `db:migrate` | `alembic upgrade head` |
+| `db:rollback` | Rollback 1 migration |
+| `db:rollback --step=N` | Rollback N migrations |
+| `db:rollback --to=REV` | Rollback to revision |
+| `db:status` | Current revision |
+| `db:history` | Full history |
+| `db:seed` | Run `db/seeds.py` |
+| `db:reset` | Downgrade all → migrate → seed |
 
-All API routes are under the `/api/v1` prefix.
+### Generators
 
-### Response format
+| Command | Description |
+|---------|-------------|
+| `generate migration <name>` | New migration in `db/migrations/versions/` |
+| `generate controller <name>` | New controller in `app/controllers/` |
+| `generate model <name>` | New model in `app/models/` |
+| `generate job <name>` | New job in `app/jobs/` |
+| `generate service <name>` | New service in `app/services/` |
 
-**Success**
+### Other
 
-```json
-{
-  "success": true,
-  "data": { ... },
-  "meta": { "page": 1, "per_page": 20, "total": 100, "total_pages": 5, "has_next": true, "has_prev": false }
-}
-```
-
-`meta` is only present for paginated list endpoints.
-
-**Error**
-
-```json
-{
-  "success": false,
-  "error": "Message",
-  "code": 400
-}
-```
-
-### Authentication
-
-- **Header:** `Authorization: Bearer <access_token>`
-- **Login:** `POST /api/v1/auth/login` with `{ "email", "password" }` → returns `access_token` and `refresh_token`.
-- **Refresh:** `POST /api/v1/auth/refresh` with `{ "refresh_token" }` → returns new `access_token`.
-
-Public routes (no token): `/health`, `/docs`, `/redoc`, `/api/v1/auth/login`, `/api/v1/auth/register`.
-
-### Route table
-
-| Method | Path | Description |
-|--------|------|-------------|
-| **Health** | | |
-| GET | `/health` | Health check |
-| **Auth** | | |
-| POST | `/api/v1/auth/login` | Login → tokens |
-| POST | `/api/v1/auth/register` | Register → tokens |
-| POST | `/api/v1/auth/logout` | Logout (client discards tokens) |
-| GET | `/api/v1/auth/me` | Current user (requires auth) |
-| POST | `/api/v1/auth/refresh` | New access token from refresh token |
-| **Users** | | |
-| GET | `/api/v1/users` | List users (paginated, auth) |
-| POST | `/api/v1/users` | Create user (auth) |
-| GET | `/api/v1/users/{id}` | Get user (auth) |
-| PUT | `/api/v1/users/{id}` | Update user (auth) |
-| DELETE | `/api/v1/users/{id}` | Delete user (admin only) |
-| **Posts** | | |
-| GET | `/api/v1/posts` | List posts (paginated, optional `?published=true`) |
-| POST | `/api/v1/posts` | Create post (auth) |
-| GET | `/api/v1/posts/{id}` | Get post |
-| PUT | `/api/v1/posts/{id}` | Update post (owner or admin) |
-| DELETE | `/api/v1/posts/{id}` | Soft-delete post (owner or admin) |
-
-### Example: register and list users
-
-```bash
-# Register
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"dev@example.com","name":"Dev User","password":"securepass123"}'
-
-# Response includes access_token; use it for protected routes
-export TOKEN="<access_token>"
-
-# List users (paginated)
-curl -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/users?page=1&per_page=10"
-```
+| Command | Description |
+|---------|-------------|
+| `routes` | Print all routes (method, path) |
+| `worker` | Start Celery worker |
+| `worker --queue=NAME` | Worker for one queue |
+| `scheduler` | Start Celery Beat |
+| `shell` | REPL with `db` and every symbol from `app.models` |
 
 ---
 
 ## Architecture
 
+### Models (SQLAlchemy only for CRUD)
+
+- **Base:** `BaseModel` (from `config.database.Base`).
+- **Callbacks:** `@before_save`, `@after_save`, `@after_create`, `@before_destroy`, `@after_destroy`.
+- **Instance:** `save(db)`, `destroy(db)`, `update(db, **kwargs)`, `to_dict()`, `reload(db)`.
+- **Class:** `find(db, id)`, `find_by(db, **kwargs)`, `where(db, **kwargs)`, `all(db)`, `create(db, **kwargs)`.
+- **Concerns:** `Timestampable`, `SoftDeletable`, `Sluggable` (mixins for columns and helpers).
+
+**Always import from the single entrypoint:**
+
+```python
+from app.models import BaseModel, Timestampable, MyModel  # add MyModel in app/models/__init__.py
+```
+
 ### Controllers
 
-- Inherit from `BaseController`; get `request`, `db`, and (after auth) `current_user`.
-- Use `@before_action(only=[...], except_list=[...])` to run filters before actions.
-- Use `render_json(data, status=200, meta=...)` and `render_error(msg, status=400)` for responses.
+- **Base:** `BaseController(request, db)` with `params`, `render_json()`, `render_error()`.
+- **Filters:** `@before_action(only=[...], except_list=[...])`, `@after_action`, `@skip_before_action`.
 - **Concerns:** `Authenticatable` (`authenticate_user`, `require_admin`, `require_owner`), `Paginatable` (`paginate`).
-
-### Models
-
-- Inherit from `BaseModel` (which uses `config.database.Base`).
-- **Callbacks:** `@before_save`, `@after_save`, `@after_create`, `@before_destroy`, `@after_destroy`.
-- **Instance:** `save(db)`, `destroy(db)`, `update(db, **kw)`, `to_dict()`, `reload(db)`.
-- **Class:** `find(db, id)`, `find_by(db, **kw)`, `where(db, **kw)`, `all(db)`, `create(db, **kw)`.
-- **Concerns:** Timestampable (created_at/updated_at), SoftDeletable (deleted_at, soft_delete/restore), Sluggable (slug generation).
+- **Auth:** `request.state.current_user` is set by middleware (JWT payload dict or your own logic). No model import in middleware.
 
 ### Services
 
-- Inherit from `BaseService(db)`; return `self.success(data)` or `self.failure(error)`.
-- Encapsulate business logic; used by controllers.
+- **Base:** `BaseService(db)` with `success(data)` and `failure(error)`.
+- Use for business logic; controllers call services and return `render_json(service.result)`.
 
-### Jobs
+### Jobs (Celery)
 
-- Inherit from `BaseJob`; implement `perform(**kwargs)`.
-- Use `MyJob.perform_later(**kwargs)` to enqueue.
-- Configure queue, retries, and (optional) `on_failure` in the job class.
-- Celery queues: `default`, `mailers`, `critical`, `low_priority`.
-- Beat runs `CleanupJob` daily (e.g. 2:00 UTC) for soft-deleted posts older than 30 days.
+- **Base:** `BaseJob` with `perform(**kwargs)`, `perform_later(**kwargs)`, `perform_now(**kwargs)`, `on_failure(exc, kwargs)`.
+- Set `queue`, `retry_limit`, `retry_delay` on the subclass. Register the task in `config/celery.py` `include=[]` and (optional) `beat_schedule` in `config/settings.py`.
 
 ### Routing
 
-- All routes are defined in `config/routes.py`.
-- `draw_routes(app)` registers routes; uses `namespace(app, "/api/v1")` and `resources(router, "/users", UsersController)` (and similarly for posts).
-- Routes run `before_actions` then the controller action; path params are passed via `request.state.path_params`.
+- **File:** `config/routes.py`; **function:** `draw_routes(app)`.
+- **Helpers:** `namespace(app, "/api/v1")` yields a router; `resources(router, "/articles", ArticlesController)` registers index/show/create/update/destroy.
+- Path params are on `request.state.path_params`; filters run before the action.
 
 ---
 
 ## Testing
 
-Tests use an in-memory SQLite database by default (override with `TEST_DATABASE_URL`).
-
-**Run all tests**
+- **DB:** In-memory SQLite by default (`DATABASE_URL` / `TEST_DATABASE_URL` in test run).
+- **Fixtures:** `db` (session, create/drop tables per test), `client` (TestClient with overridden `get_db`).
 
 ```bash
 pytest tests/ -v
 ```
 
-**Run with coverage**
+**With coverage:**
 
 ```bash
 pip install pytest-cov
 pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
-**Fixtures (in `conftest.py`)**
-
-- `db` — Fresh DB session per test; creates/drops tables.
-- `client` — `TestClient` with `get_db` overridden to use test DB.
-- `sample_user` — Regular user (`user@example.com` / `password123`).
-- `admin_user` — Admin (`admin@example.com` / `Admin1234!`).
-- `sample_post` — Post belonging to `sample_user`.
-- `authenticated_client` — Client with `Authorization: Bearer <token>` for `sample_user`.
-
-**Test modules**
-
-- `test_health.py` — GET `/health`.
-- `test_auth.py` — Register, login, me, refresh.
-- `test_users.py` — List (401 when unauthenticated), create, get, update, delete (admin vs non-admin).
-- `test_posts.py` — List, get, create, update, soft delete.
+**Included:** `tests/test_health.py` — GET `/health` returns 200. Add your own tests and fixtures (e.g. authenticated client, model factories) in `conftest.py` and new `test_*.py` files.
 
 ---
 
-## Background jobs
+## Adding your first resources
 
-### Queues
+### 1. Model
 
-| Queue | Use case |
-|-------|----------|
-| `default` | General tasks |
-| `mailers` | Email (e.g. WelcomeEmailJob) |
-| `critical` | High priority |
-| `low_priority` | Cleanup, batch (e.g. CleanupJob) |
+Create `app/models/article.py`:
 
-### Built-in jobs
+```python
+from sqlalchemy.orm import Mapped, mapped_column
+from app.models import BaseModel
 
-- **WelcomeEmailJob** — Enqueued after user creation; queue `mailers`, retries 5.
-- **CleanupJob** — Permanently deletes soft-deleted posts older than 30 days; queue `low_priority`; scheduled daily via Beat.
-
-### Running workers
-
-```bash
-# Default queue
-python manage.py worker
-
-# Specific queue
-python manage.py worker --queue=mailers
-python manage.py worker --queue=low_priority
-
-# Beat (scheduler)
-python manage.py scheduler
+class Article(BaseModel):
+    __tablename__ = "articles"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(nullable=False)
+    body: Mapped[str] = mapped_column(nullable=False)
 ```
 
-Or with Celery directly:
+Add to **`app/models/__init__.py`**:
+
+```python
+from app.models.article import Article
+__all__ = [..., "Article"]
+```
+
+### 2. Migration
 
 ```bash
-celery -A config.celery worker -l info
-celery -A config.celery beat -l info
+python manage.py generate migration create_articles_table
+# Edit db/migrations/versions/YYYYMMDD_HHMMSS_create_articles_table.py: add op.create_table(...)
+python manage.py db:migrate
 ```
+
+### 3. Controller and routes
+
+Create `app/controllers/articles_controller.py` (inherit `BaseController`, implement `index`, `show`, `create`, `update`, `destroy`). In **`config/routes.py`** inside `draw_routes(app)`:
+
+```python
+from app.controllers.articles_controller import ArticlesController
+with namespace(app, "/api/v1") as router:
+    resources(router, "/articles", ArticlesController)
+```
+
+### 4. Optional: service and schemas
+
+- **Service:** `app/services/article_service.py` inheriting `BaseService`, used by the controller.
+- **Schemas:** Pydantic models in `app/schemas/` for request/response validation; keep **all persistence in models** (`Article.create(db, ...)`, `article.save(db)`).
 
 ---
 
 ## Deployment
 
 1. **Environment**
-   - Set `APP_ENV=production`, `DEBUG=false`.
-   - Use strong, unique `SECRET_KEY` and `JWT_SECRET_KEY`.
-   - Point `DATABASE_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, and `REDIS_URL` to production instances.
+   - `APP_ENV=production`, `DEBUG=false`.
+   - Strong `SECRET_KEY` and `JWT_SECRET_KEY`.
+   - Production `config/database.yml` (or `DATABASE_URL`), `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `REDIS_URL`.
 
 2. **Processes**
-   - Run the API with a process manager (e.g. Gunicorn + Uvicorn worker):  
-     `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000`
-   - Run one or more Celery workers and one Beat process (or use a separate scheduler if preferred).
+   - **API:** e.g. `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000`
+   - **Workers:** one or more Celery workers; one Beat process if using scheduled tasks.
 
 3. **Database**
-   - Run migrations on deploy: `python manage.py db:migrate`.
-   - Optionally run seeds once: `python manage.py db:seed`.
+   - `python manage.py db:migrate`
+   - Optionally run your seeds once: `python manage.py db:seed`
 
 4. **Security**
-   - Restrict CORS in production (configure `allow_origins` in `main.py` from settings).
-   - Use HTTPS and secure cookies if you add session-based features later.
+   - Restrict CORS in `main.py` (e.g. from settings). Use HTTPS in production.
 
 ---
 
 ## License
 
-Use this boilerplate as a base for your own projects. Adjust naming, branding, and licensing as needed.
+Use as a base for your own projects. Adjust naming and licensing as needed.
