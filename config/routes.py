@@ -1,6 +1,7 @@
 """
 Central route definitions. Rails equivalent: config/routes.rb
 Single file where all routes are registered. Uses resources() and namespace().
+Add your controllers and routes here.
 """
 
 import asyncio
@@ -10,9 +11,6 @@ from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 
 from config.database import get_db
-from app.controllers.users_controller import UsersController
-from app.controllers.posts_controller import PostsController
-from app.controllers.auth_controller import AuthController
 
 
 def _wrap(
@@ -28,7 +26,7 @@ def _wrap(
         db: Session = Depends(get_db),
         **path_params: int | str,
     ):
-        request.state.path_params = path_params
+        request.state.path_params = path_params or {}
         ctrl = controller_cls(request=request, db=db)
         if run_before:
             controller_cls._run_before_actions(ctrl, action)
@@ -51,7 +49,6 @@ def resources(
     GET path -> index, POST path -> create, GET path/{id} -> show, PUT path/{id} -> update, DELETE path/{id} -> destroy.
     """
     only = only or ["index", "show", "create", "update", "destroy"]
-    add = app_or_router.get if hasattr(app_or_router, "get") else app_or_router.add_api_route
     if "index" in only:
         app_or_router.add_api_route(
             path,
@@ -93,59 +90,10 @@ def namespace(app: "FastAPI", prefix: str):
 
 def draw_routes(app: "FastAPI") -> None:
     """
-    Register all routes. Structure:
-    # —— Auth ———
-    POST   /api/v1/auth/login
-    POST   /api/v1/auth/register
-    POST   /api/v1/auth/logout
-    GET    /api/v1/auth/me
-    POST   /api/v1/auth/refresh
-    # —— Users ———
-    GET    /api/v1/users
-    POST   /api/v1/users
-    GET    /api/v1/users/{id}
-    PUT    /api/v1/users/{id}
-    DELETE /api/v1/users/{id}
-    # —— Posts ———
-    GET    /api/v1/posts
-    POST   /api/v1/posts
-    GET    /api/v1/posts/{id}
-    PUT    /api/v1/posts/{id}
-    DELETE /api/v1/posts/{id}
+    Register all routes. Framework only — add your resources here.
+    Example:
+        with namespace(app, "/api/v1") as router:
+            resources(router, "/articles", ArticlesController)
     """
-    from fastapi import FastAPI
-    auth_ctrl = AuthController
-    users_ctrl = UsersController
-    posts_ctrl = PostsController
-
-    with namespace(app, "/api/v1") as router:
-        # —— Auth ———
-        router.add_api_route(
-            "/auth/login",
-            _wrap(auth_ctrl, "login", lambda c: c.login()),
-            methods=["POST"],
-        )
-        router.add_api_route(
-            "/auth/register",
-            _wrap(auth_ctrl, "register", lambda c: c.register()),
-            methods=["POST"],
-        )
-        router.add_api_route(
-            "/auth/logout",
-            _wrap(auth_ctrl, "logout", lambda c: c.logout()),
-            methods=["POST"],
-        )
-        router.add_api_route(
-            "/auth/me",
-            _wrap(auth_ctrl, "me", lambda c: c.me()),
-            methods=["GET"],
-        )
-        router.add_api_route(
-            "/auth/refresh",
-            _wrap(auth_ctrl, "refresh", lambda c: c.refresh()),
-            methods=["POST"],
-        )
-        # —— Users ———
-        resources(router, "/users", users_ctrl)
-        # —— Posts ———
-        resources(router, "/posts", posts_ctrl)
+    # No application routes by default — add your controllers above
+    pass

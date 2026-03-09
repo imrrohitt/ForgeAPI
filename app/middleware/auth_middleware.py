@@ -1,6 +1,7 @@
 """
-Authentication middleware: validate JWT and set request.state.current_user.
+Authentication middleware: validate JWT and set request.state.current_user (payload dict).
 Rails equivalent: before_action :authenticate_user!
+No model import — current_user is the decoded JWT payload. Your controller can load the model if needed.
 """
 
 from typing import Callable
@@ -10,14 +11,12 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.helpers.jwt_helper import JWTHelper
-from app.models.user import User
-from config.database import SessionLocal
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """
-    Reads Authorization: Bearer <token>, decodes JWT, loads user, sets request.state.current_user.
-    Public routes (e.g. /health, /docs, /api/v1/auth/login, /api/v1/auth/register) skip validation.
+    Reads Authorization: Bearer <token>, decodes JWT, sets request.state.current_user to payload dict.
+    Public paths skip validation. No DB/model dependency — framework only.
     """
 
     PUBLIC_PATHS = {
@@ -25,8 +24,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/redoc",
         "/openapi.json",
-        "/api/v1/auth/login",
-        "/api/v1/auth/register",
     }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -42,18 +39,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         try:
             payload = JWTHelper.decode_token(token)
-            if payload.get("type") != "access":
-                return await call_next(request)
-            user_id = int(payload.get("sub", 0))
-            if not user_id:
-                return await call_next(request)
-            db = SessionLocal()
-            try:
-                user = db.get(User, user_id)
-                if user and user.is_active:
-                    request.state.current_user = user
-            finally:
-                db.close()
+            if payload.get("type") == "access":
+                request.state.current_user = payload
         except Exception:
             pass
         return await call_next(request)

@@ -1,33 +1,20 @@
-"""Pydantic schemas. Rails equivalent: strong params + serializers."""
+"""
+Pydantic schemas for request/response validation and serialization only.
+Rails equivalent: strong parameters + serializers. All CRUD goes through SQLAlchemy models.
+"""
 
-from app.schemas.user_schema import (
-    UserCreateSchema,
-    UserUpdateSchema,
-    UserResponseSchema,
-    UserListSchema,
-    LoginSchema,
-    TokenSchema,
-    RefreshSchema,
-)
-from app.schemas.post_schema import (
-    PostCreateSchema,
-    PostUpdateSchema,
-    PostResponseSchema,
-    PostListSchema,
-    PaginationMeta,
-)
+from pydantic import BaseModel
 
-__all__ = [
-    "UserCreateSchema",
-    "UserUpdateSchema",
-    "UserResponseSchema",
-    "UserListSchema",
-    "LoginSchema",
-    "TokenSchema",
-    "RefreshSchema",
-    "PostCreateSchema",
-    "PostUpdateSchema",
-    "PostResponseSchema",
-    "PostListSchema",
-    "PaginationMeta",
-]
+
+class PaginationMeta(BaseModel):
+    """Pagination metadata for list endpoints."""
+
+    page: int
+    per_page: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
+__all__ = ["PaginationMeta"]

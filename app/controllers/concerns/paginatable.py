@@ -9,8 +9,7 @@ from fastapi import Request
 from sqlalchemy.orm import Query
 
 from config.settings import get_settings
-from app.helpers.response_helper import success_response
-from app.schemas.user_schema import PaginationMeta
+from app.schemas import PaginationMeta
 
 
 class Paginatable:

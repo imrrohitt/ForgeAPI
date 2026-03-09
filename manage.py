@@ -295,14 +295,15 @@ def scheduler() -> None:
 
 @cli.command()
 def shell() -> None:
-    """Python REPL with app context (db, User, Post, etc.)."""
-    from config.database import SessionLocal, get_db
-    from app.models import User, Post
+    """Python REPL with app context (db and all models from app.models)."""
+    from config.database import SessionLocal
+    from app import models as app_models
     db = SessionLocal()
-    print("Available: db, User, Post")
+    names = [x for x in dir(app_models) if not x.startswith("_")]
+    print("Available: db,", ", ".join(names))
     try:
         import code
-        code.interact(local={"db": db, "User": User, "Post": Post})
+        code.interact(local={"db": db, **{n: getattr(app_models, n) for n in names}})
     finally:
         db.close()
 

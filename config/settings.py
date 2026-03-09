@@ -66,11 +66,5 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_QUEUES = ["default", "mailers", "critical", "low_priority"]
 CELERY_DEFAULT_QUEUE = "default"
 
-# Celery Beat schedule (periodic tasks)
-CELERY_BEAT_SCHEDULE = {
-    "cleanup-soft-deleted-posts-daily": {
-        "task": "app.jobs.cleanup_job.CleanupJob.run",
-        "schedule": {"hour": 2, "minute": 0},  # 2am UTC daily
-        "options": {"queue": "low_priority"},
-    },
-}
+# Celery Beat schedule (periodic tasks) — add your scheduled jobs here
+CELERY_BEAT_SCHEDULE: dict = {}

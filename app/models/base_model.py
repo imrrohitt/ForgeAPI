@@ -133,7 +133,7 @@ class BaseModel(DeclarativeBaseConfig):
     def find_by(cls: type[T], db: Session, **kwargs: Any) -> Optional[T]:
         """Find first matching record."""
         stmt = select(cls).filter_by(**kwargs).limit(1)
-        return db.execute(stmt).scalar_one_or_none()
+        return db.execute(stmt).scalars().first()
 
     @classmethod
     def where(cls: type[T], db: Session, **kwargs: Any) -> list[T]:

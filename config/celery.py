@@ -14,10 +14,7 @@ celery_app = Celery(
     "myapp",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=[
-        "app.jobs.welcome_email_job",
-        "app.jobs.cleanup_job",
-    ],
+    include=[],  # Add your job modules: e.g. "app.jobs.my_job"
 )
 
 celery_app.conf.update(
@@ -36,13 +33,14 @@ celery_app.conf.update(
     },
 )
 
-# Celery Beat: convert hour/minute dict to crontab
+# Celery Beat: convert hour/minute dict to crontab (empty for framework)
 beat_schedule = {}
-for name, entry in CELERY_BEAT_SCHEDULE.items():
-    s = entry["schedule"]
-    beat_schedule[name] = {
-        "task": entry["task"],
-        "schedule": crontab(hour=s.get("hour", 2), minute=s.get("minute", 0)),
-        "options": entry.get("options", {}),
-    }
+if CELERY_BEAT_SCHEDULE:
+    for name, entry in CELERY_BEAT_SCHEDULE.items():
+        s = entry.get("schedule", {})
+        beat_schedule[name] = {
+            "task": entry["task"],
+            "schedule": crontab(hour=s.get("hour", 2), minute=s.get("minute", 0)),
+            "options": entry.get("options", {}),
+        }
 celery_app.conf.beat_schedule = beat_schedule
