@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 
 from config.database import get_db
+from app.helpers.response_helper import error_response
 
 
 def _wrap(
@@ -24,12 +25,14 @@ def _wrap(
     async def _async_wrapper(
         request: Request,
         db: Session = Depends(get_db),
-        **path_params: int | str,
     ):
-        request.state.path_params = path_params or {}
+        request.state.path_params = getattr(request, "path_params", None) or {}
         ctrl = controller_cls(request=request, db=db)
-        if run_before:
-            controller_cls._run_before_actions(ctrl, action)
+        try:
+            if run_before:
+                controller_cls._run_before_actions(ctrl, action)
+        except Exception as e:
+            return error_response(str(e), code=500)
         result = handler(ctrl)
         if asyncio.iscoroutine(result):
             return await result
