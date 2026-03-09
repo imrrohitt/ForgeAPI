@@ -7,6 +7,7 @@ A **clean, production-ready framework** that brings Ruby on Rails conventions to
 ## Contents
 
 - [Quick start](#quick-start)
+- [FastForge CLI (Rails-like app generator)](#fastforge-cli-rails-like-app-generator)
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
 - [Conventions](#conventions)
@@ -43,6 +44,47 @@ python manage.py runserver
 ```
 
 Then open **http://localhost:8000/health** and **http://localhost:8000/docs** (when `DEBUG=true`).
+
+---
+
+## FastForge CLI (Rails-like app generator)
+
+Generate new apps and scaffolds with the **fastforge** CLI (like `rails new` / `rails generate`).
+
+```bash
+# Install the CLI (from this repo)
+pip install -e .
+
+# Create a new app (like rails new my_app)
+fastforge new demo_app
+cd demo_app
+
+# Install app dependencies and configure
+pip install -r requirements.txt
+cp .env.example .env
+cp config/database.yml.example config/database.yml
+
+# Generate model, controller, migration (like rails generate)
+fastforge generate model User
+fastforge generate controller Users
+fastforge generate migration create_users
+
+# Run migrations and server (like rails db:migrate / rails s)
+fastforge migrate
+fastforge runserver
+```
+
+| Command | Description |
+|--------|-------------|
+| `fastforge new &lt;app_name&gt;` | Create a new FastAPI app from template |
+| `fastforge generate model User` | Create model, schema, and migration |
+| `fastforge generate controller Users` | Create controller and routes (auto-loaded) |
+| `fastforge generate migration create_users` | Create timestamped migration file |
+| `fastforge migrate` | Run pending migrations |
+| `fastforge runserver` | Start uvicorn with reload |
+| `fastforge routes` | Print all registered routes |
+
+Generated apps use **auto-loaded routes**: any `app/routes/*_routes.py` that defines a `router` is included automatically (no central routes file to edit).
 
 ---
 
